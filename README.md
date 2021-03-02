@@ -49,9 +49,10 @@ Additionally, the code includes a thin wrapper around the [unconstrained optimiz
 * trust-krylov
 
 ### `lqr_optimizers.py`
-Dynamic programming solutions for the infinite-horizon discrete-time LQR problem.
+Dynamic programming and direct solutions for the infinite-horizon discrete-time LQR problem.
 * Policy iteration
 * Value iteration
+* Wrapper around SciPy [`solve_discrete_are`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_discrete_are.html) to solve Riccati equation directly
 
 ### `lqr_problems.py`
 Functions to generate random problem data and create the objective function, its gradient, and its Hessian.
