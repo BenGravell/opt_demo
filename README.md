@@ -1,7 +1,7 @@
 # opt_demo
- Demo of optimization algorithms
+Demo of optimization algorithms for infinite-horizon discrete-time LQR policy optimization
 
-Dependencies
+## Dependencies
 * [NumPy](https://github.com/numpy/numpy)
 * [SciPy](https://github.com/scipy/scipy)
 * [Autograd](https://github.com/HIPS/autograd)
