@@ -88,7 +88,7 @@ def plot_single(result, x_opt, f_opt, method):
 
 
 def plot_multi(results_dict, x_opt, f_opt, category):
-    fig, ax = plt.subplots(nrows=3, sharex=True, figsize=(8, 6.5))
+    fig, ax = plt.subplots(nrows=3, sharex=True, figsize=(8, 10))
     for method, result_dict in results_dict.items():
         result = result_dict['result']
         # Unpack result
@@ -106,7 +106,8 @@ def plot_multi(results_dict, x_opt, f_opt, category):
 
     ax[2].axhline(MIN_GRAD_NORM, color='k', linestyle='--', alpha=0.5)
 
-    xlim = (-1.0, ax[0].get_xlim()[1] * 1.5)
+    # xlim = (-1.0, ax[0].get_xlim()[1] * 1.7)
+    xlim = (-1.0, 71)
     for i in range(3):
         ax[i].legend(ncol=1, loc='upper right')
         ax[i].set_xlim(xlim)

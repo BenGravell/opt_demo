@@ -3,7 +3,8 @@ import autograd.numpy.linalg as la
 from scipy.linalg import cho_factor, cho_solve, LinAlgError
 from scipy.optimize import line_search as sp_line_search
 
-from lqr_utility import quadratic_formula, posdefify, vec, mat, specrad, PrintColors
+from lqr_utility import quadratic_formula, posdefify, vec, mat, specrad
+from colors import PrintColors
 
 
 class Objective:
