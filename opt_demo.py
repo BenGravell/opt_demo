@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 from time import time
 import os
 
-from lqr_utility import vec, mat, dlyap, dare, gain, check_are, PrintColors
-from lqr_utility import calc_cost_manual, calc_grad_manual, calc_hess_manual
+from lqr_utility import vec, mat, dlyap, dare, gain, check_are, calc_cost_manual, calc_grad_manual, calc_hess_manual
 from lqr_problems import gen_lqr_problem, make_lqr_objective
 from lqr_optimizers import value_iteration, policy_iteration, riccati_direct
 from optimizers import Objective, \
@@ -15,43 +14,62 @@ from optimizers import Objective, \
     QuasiNewtonOptSetting, QuasiNewtonOptimizer, \
     TrustRegionOptSetting, TrustRegionOptimizer
 from scipy.optimize import minimize as sp_minimize
-
+from colors import PrintColors
 
 MIN_GRAD_NORM = 1e-4
 
 
-def sanity_check(K, A, B, Q, X0, f, g, h, tol=1e-6, verbose=True):
+def sanity_check(K, A, B, Q, X0, discount=None, f=None, g=None, h=None, tol=1e-6, verbose=True):
     # Sanity check - compare cost, gradient, hessian-quadratic-form with hand-calculated expressions
     n, m = B.shape
-    # Cost
-    C0 = calc_cost_manual(K, A, B, Q, X0)
-    C0_true = f(vec(K))
-    # Gradient
-    G0 = vec(calc_grad_manual(K, A, B, Q, X0))
-    G0_true = g(vec(K))
-    # Hessian
-    E = npr.randn(m, n)  # technically we need to check if Hessian-quadratic-form matches at all possible E, just use 1
-    H0_EE = calc_hess_manual(K, E, A, B, Q, X0)
-    H0_EE_true = np.dot(vec(E), np.dot(h(vec(K)), vec(E)))
-
-    if np.abs(C0_true - C0) > tol:
-        raise ValueError('Sanity check failed! Cost does not match true')
-    if la.norm(G0 - G0_true) > tol:
-        raise ValueError('Sanity check failed! Gradient does not match true')
-    if np.abs(H0_EE - H0_EE_true) > tol:
-        raise ValueError('Sanity check failed! Hessian quadform does not match true')
+    vK = vec(K)
 
     if verbose:
         print('SANITY CHECK')
-        print('cost')
-        print(C0_true)
-        print(C0)
-        print('gradient')
-        print(G0_true)
-        print(G0)
-        print('hessian quadform')
-        print(H0_EE)
-        print(H0_EE_true)
+
+    # Cost
+    if f is not None:
+        C0 = calc_cost_manual(K, A, B, Q, X0, discount)
+        C0_true = f(vK)
+
+        if verbose:
+            print('cost')
+            print(C0_true)
+            print(C0)
+
+        if np.abs(C0_true - C0) > tol:
+            raise ValueError('Sanity check failed! Cost does not match true value.')
+
+    # Gradient
+    if g is not None:
+        G0 = vec(calc_grad_manual(K, A, B, Q, X0, discount))
+        G0_true = g(vK)
+
+        if verbose:
+            print('gradient')
+            print(G0_true)
+            print(G0)
+
+        if la.norm(G0 - G0_true) > tol:
+            raise ValueError('Sanity check failed! Gradient does not match true value.')
+
+    # Hessian
+    # (Technically we need to check if Hessian-quadratic-form matches at all possible E,
+    # but here we just use a single point E)
+    if h is not None:
+        E = npr.randn(m, n)
+        H0_EE = calc_hess_manual(K, E, A, B, Q, X0, discount)
+        H0_EE_true = np.dot(vec(E), np.dot(h(vK), vec(E)))
+
+        if verbose:
+            print('hessian quadform')
+            print(H0_EE)
+            print(H0_EE_true)
+
+        if np.abs(H0_EE - H0_EE_true) > tol:
+            raise ValueError('Sanity check failed! Hessian quadform does not match true value,')
+
+    if verbose:
         print('')
     return
 
@@ -128,19 +146,20 @@ if __name__ == "__main__":
     # Make LQR problem data
     A, B, Q, X0 = gen_lqr_problem(n=3, m=2, rho=0.9, round_places=1, seed=seed)
     n, m = B.shape
+    discount = None
 
     # Make LQR objective
-    f, g, h = make_lqr_objective(A, B, Q, X0)
+    f, g, h = make_lqr_objective(A, B, Q, X0, discount)
     obj = Objective(f, g, h, name='LQR')
 
     # Initial policy
     K0 = np.zeros([m, n])
     vK0 = vec(K0)
 
-    sanity_check(K0, A, B, Q, X0, f, g, h)
+    sanity_check(K0, A, B, Q, X0, discount, f, g, h)
 
     # Get the baseline solution by solving the Riccati equation directly
-    P_are, K_are = riccati_direct(A, B, Q)
+    P_are, K_are = riccati_direct(A, B, Q, discount)
     f_are = f(vec(K_are))
 
     # # SciPy optimization
@@ -190,67 +209,69 @@ if __name__ == "__main__":
 
     # From-scratch optimization
     # Optimization settings
+    constant_stepsize_gradient_methods = 0.1
+    max_iters_gradient_methods = 500
     settings_dict_gradient = {
                      'gradient':
                          {'setting': GradientOptSetting(x0=vK0,
-                                                        a0=0.1,
+                                                        a0=constant_stepsize_gradient_methods,
                                                         step_method='gradient',
-                                                        max_iters=1000,
+                                                        max_iters=max_iters_gradient_methods,
                                                         verbose_stride=10,
                                                         min_grad_norm=MIN_GRAD_NORM),
                           'optimizer': GradientOptimizer},
                      'momentum':
                          {'setting': GradientOptSetting(x0=vK0,
-                                                        a0=0.1,
+                                                        a0=constant_stepsize_gradient_methods,
                                                         step_method='momentum',
                                                         mass=0.5,
                                                         v0=np.zeros_like(vK0),
-                                                        max_iters=1000,
+                                                        max_iters=max_iters_gradient_methods,
                                                         verbose_stride=10,
                                                         min_grad_norm=MIN_GRAD_NORM),
                           'optimizer': GradientOptimizer},
                      'nesterov':
                          {'setting': GradientOptSetting(x0=vK0,
-                                                        a0=0.1,
+                                                        a0=constant_stepsize_gradient_methods,
                                                         step_method='nesterov',
                                                         mass=0.5,
                                                         v0=np.zeros_like(vK0),
-                                                        max_iters=1000,
+                                                        max_iters=max_iters_gradient_methods,
                                                         verbose_stride=10,
                                                         min_grad_norm=MIN_GRAD_NORM),
                           'optimizer': GradientOptimizer},
                      'relativistic':
                          {'setting': GradientOptSetting(x0=vK0,
-                                                        a0=0.1,
+                                                        a0=constant_stepsize_gradient_methods,
                                                         step_method='relativistic',
                                                         mass=0.5,
                                                         delta=20.0,
                                                         v0=np.zeros_like(vK0),
-                                                        max_iters=1000,
+                                                        max_iters=max_iters_gradient_methods,
                                                         verbose_stride=10,
                                                         min_grad_norm=MIN_GRAD_NORM),
                           'optimizer': GradientOptimizer},
                      'rmsprop':
                          {'setting': GradientOptSetting(x0=vK0,
-                                                        a0=0.1,
+                                                        a0=constant_stepsize_gradient_methods,
                                                         step_method='rmsprop',
                                                         avg_sq_grad0=np.ones_like(vK0),
                                                         gamma=0.9,
                                                         eps=1e-8,
-                                                        max_iters=1000,
+                                                        max_iters=max_iters_gradient_methods,
                                                         verbose_stride=10,
                                                         min_grad_norm=MIN_GRAD_NORM),
                           'optimizer': GradientOptimizer},
                      'adam':
                          {'setting': GradientOptSetting(x0=vK0,
-                                                        a0=0.1,
+                                                        a0=constant_stepsize_gradient_methods,
                                                         step_method='adam',
                                                         eps=1e-8,
                                                         b1=0.5,
                                                         b2=0.99,
                                                         mean0=np.zeros_like(vK0),
                                                         variance0=np.zeros_like(vK0),
-                                                        max_iters=1000,
+                                                        max_iters=max_iters_gradient_methods,
                                                         verbose_stride=10,
                                                         min_grad_norm=MIN_GRAD_NORM),
                           'optimizer': GradientOptimizer},

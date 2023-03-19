@@ -1,34 +1,16 @@
 import autograd.numpy as np
 import autograd.numpy.linalg as la
 
-from lqr_utility import vec, mat, dlyap, dare, gain, calc_AK, calc_QK
+from lqr_utility import vec, mat, deblock, dlyap, dare, gain, ricc, policy_evaluation
 from lqr_problems import make_lqr_objective
 
 
-def policy_evaluation(K, A, B, Q):
-    AK = calc_AK(K, A, B)
-    QK = calc_QK(K, Q)
-    PK = dlyap(AK.T, QK)
-    return PK
-
-
-def ricc(P, A, B, Q):
-    n, m = B.shape
-    AB = np.hstack([A, B])
-    H = np.dot(AB.T, np.dot(P, AB)) + Q
-    Hxx = H[0:n, 0:n]
-    Hxu = H[0:n, n:n+m]
-    Hux = H[n:n+m, 0:n]
-    Huu = H[n:n+m, n:n+m]
-    return Hxx - np.dot(Hxu, la.solve(Huu, Hux))
-
-
-def value_iteration(K0, A, B, Q, X0, min_grad_norm=None, max_iters=100):
+def value_iteration(K0, A, B, Q, X0, discount=None, min_grad_norm=None, max_iters=100):
     n = K0.size
-    f, g, h = make_lqr_objective(A, B, Q, X0)
+    f, g, h = make_lqr_objective(A, B, Q, X0, discount)
 
     # Initialize
-    P = policy_evaluation(K0, A, B, Q)
+    P = policy_evaluation(K0, A, B, Q, discount)
     K = np.copy(K0)
 
     # Pre-allocate history arrays
@@ -46,7 +28,7 @@ def value_iteration(K0, A, B, Q, X0, min_grad_norm=None, max_iters=100):
         f_hist[i] = f(vK)
         g_hist[i] = g(vK)
         h_hist[i] = h(vK)
-        K = gain(P, A, B, Q)
+        K = gain(P, A, B, Q, discount)
         if min_grad_norm is not None:
             if la.norm(g(vec(K))) < min_grad_norm:
                 # Trim off unused part of history matrices
@@ -56,10 +38,10 @@ def value_iteration(K0, A, B, Q, X0, min_grad_norm=None, max_iters=100):
                 g_hist = g_hist[0:i+1]
                 h_hist = h_hist[0:i+1]
                 break
-        P = ricc(P, A, B, Q)
+        P = ricc(P, A, B, Q, discount)
 
     # Final iterate
-    K = gain(P, A, B, Q)
+    K = gain(P, A, B, Q, discount)
     vK = vec(K)
     x_hist[-1] = vK
     f_hist[-1] = f(vK)
@@ -68,13 +50,13 @@ def value_iteration(K0, A, B, Q, X0, min_grad_norm=None, max_iters=100):
     return t_hist, x_hist, f_hist, g_hist, h_hist
 
 
-def policy_iteration(K0, A, B, Q, X0, max_iters=100, min_grad_norm=None):
+def policy_iteration(K0, A, B, Q, X0, discount=None, max_iters=100, min_grad_norm=None):
     n = K0.size
-    f, g, h = make_lqr_objective(A, B, Q, X0)
+    f, g, h = make_lqr_objective(A, B, Q, X0, discount)
 
     # Initialize
     K = np.copy(K0)
-    P = policy_evaluation(K0, A, B, Q)
+    P = policy_evaluation(K0, A, B, Q, discount)
 
     # Pre-allocate history arrays
     t_hist = np.arange(max_iters)
@@ -100,8 +82,8 @@ def policy_iteration(K0, A, B, Q, X0, max_iters=100, min_grad_norm=None):
                 g_hist = g_hist[0:i+1]
                 h_hist = h_hist[0:i+1]
                 break
-        K = gain(P, A, B, Q)
-        P = policy_evaluation(K, A, B, Q)
+        K = gain(P, A, B, Q, discount)
+        P = policy_evaluation(K, A, B, Q, discount)
 
     # Final iterate
     vK = vec(K)
@@ -112,11 +94,14 @@ def policy_iteration(K0, A, B, Q, X0, max_iters=100, min_grad_norm=None):
     return t_hist, x_hist, f_hist, g_hist, h_hist
 
 
-def riccati_direct(A, B, Q):
+def riccati_direct(A, B, Q, discount=None):
     n, m = B.shape
-    Qxx = Q[0:n, 0:n]
-    Quu = Q[n:n+m, n:n+m]
-    Qxu = Q[0:n, n:n+m]
-    P = dare(A, B, Qxx, Quu, E=None, S=Qxu)
-    K = gain(P, A, B, Q)
+    Qxx, Qxu, Qux, Quu = deblock(Q, n, m)
+    if discount is None:
+        Ad, Bd = A, B
+    else:
+        discount_sqrt = np.sqrt(discount)
+        Ad, Bd = discount_sqrt*A, discount_sqrt*B
+    P = dare(Ad, Bd, Qxx, Quu, E=None, S=Qxu)
+    K = gain(P, A, B, Q, discount)
     return P, K

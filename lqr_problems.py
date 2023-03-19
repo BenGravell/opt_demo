@@ -4,7 +4,7 @@ import autograd.numpy.random as npr
 from autograd import grad, hessian
 from functools import partial
 
-from lqr_utility import vec, mat, specrad, calc_CK, posdefify, is_pos_def
+from lqr_utility import vec, mat, specrad, calc_CK, posdefify, is_pos_def, calc_AK
 
 
 def gen_rand_pd(n, round_places=None):
@@ -44,12 +44,12 @@ def gen_lqr_problem(n, m, rho=None, round_places=None, seed=None):
     return A, B, Q, X0
 
 
-def make_lqr_objective(A, B, Q, X0):
+def make_lqr_objective(A, B, Q, X0, discount=1.0):
     if A.shape[0] != B.shape[0] != X0.shape[0] or np.sum(B.shape) != Q.shape[0]:
         raise ValueError('Incompatible dimensions!')
 
     # Create the LQR objective and get derivatives
-    fs = partial(calc_CK, A=A, B=B, Q=Q, X0=X0)
+    fs = partial(calc_CK, A=A, B=B, Q=Q, X0=X0, discount=discount)
     g = grad(fs)
     h = hessian(fs)
 
@@ -60,7 +60,8 @@ def make_lqr_objective(A, B, Q, X0):
     # by modding f **after** calling grad and hessian - otherwise specrad() messes up autograd
     def fus(vK, n, m):
         K = mat(vK, shape=(m, n))
-        if specrad(A + np.dot(B, K)) < 1.0:
+        AK = calc_AK(K, A, B, discount=1.0)
+        if specrad(AK) < 1.0:
             return fs(vK)
         else:
             return np.inf
