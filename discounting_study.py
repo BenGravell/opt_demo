@@ -13,12 +13,12 @@ from lqr_optimizers import value_iteration, policy_iteration, riccati_direct
 
 def lsim_cl(A, B, K, T, x0=None):
     AK = calc_AK(K, A, B)
-    t_hist = np.arange(T+1)
-    x_hist = np.zeros([T+1, n])
+    t_hist = np.arange(T + 1)
+    x_hist = np.zeros([T + 1, n])
     if x0 is not None:
         x_hist[0] = x0
     for t in range(T):
-        x_hist[t+1] = AK @ x_hist[t]
+        x_hist[t + 1] = AK @ x_hist[t]
     return t_hist, x_hist
 
 
@@ -32,18 +32,18 @@ n, m = B.shape
 
 # Solve discounted LQR problems
 P_undiscounted, K_undiscounted = riccati_direct(A, B, Q, discount=None)
-cmap = 'Blues_r'
+cmap = "Blues_r"
 N = 2
 T = 50
 x0 = np.ones(n)
-discounts = np.linspace(0.0, 2.0, 2*N+1)
-fig, ax = plt.subplots(nrows=2, ncols=2*N+1, figsize=(3*2*N, 4))
+discounts = np.linspace(0.0, 2.0, 2 * N + 1)
+fig, ax = plt.subplots(nrows=2, ncols=2 * N + 1, figsize=(3 * 2 * N, 4))
 for i, discount in enumerate(discounts):
     P, K = riccati_direct(A, B, Q, discount)
     t_hist, x_hist = lsim_cl(A, B, K, T, x0)
     ax[0, i].imshow(K, vmin=K_undiscounted.min(), vmax=K_undiscounted.max(), cmap=cmap)
-    ax[0, i].set_title('Discount = %.2f' % discount)
+    ax[0, i].set_title("Discount = %.2f" % discount)
     ax[1, i].plot(t_hist, x_hist)
-    ax[1, i].grid('on')
+    ax[1, i].grid("on")
 fig.tight_layout()
 plt.show()

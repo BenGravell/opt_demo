@@ -8,10 +8,10 @@ def quadratic_formula(a, b, c):
     """Solve the quadratic equation 0 = a*x**2 + b*x + c using the quadratic formula."""
     if a == 0:
         return [-c / b, np.nan]
-    disc = b**2-4 * a * c
+    disc = b**2 - 4 * a * c
     disc_sqrt = disc**0.5
     den = 2 * a
-    roots = [(-b+disc_sqrt) / den, (-b-disc_sqrt) / den]
+    roots = [(-b + disc_sqrt) / den, (-b - disc_sqrt) / den]
     return roots
 
 
@@ -41,7 +41,7 @@ def specrad(A):
 
 def sympart(A):
     """Return the symmetric part of matrix A."""
-    return 0.5*(A+A.T)
+    return 0.5 * (A + A.T)
 
 
 def is_pos_def(A):
@@ -60,7 +60,7 @@ def psdpart(X):
     eigvals, eigvecs = la.eig(X)
     for i in range(X.shape[0]):
         if eigvals[i] > 0:
-            Y += eigvals[i]*np.outer(eigvecs[:, i], eigvecs[:, i])
+            Y += eigvals[i] * np.outer(eigvecs[:, i], eigvecs[:, i])
     Y = sympart(Y)
     return Y
 
@@ -98,7 +98,7 @@ def stack_AB(A, B, discount=None):
     else:
         # if not 0 <= discount <= 1:
         #     raise ValueError('Discount factor must be between 0 and 1!')
-        return np.sqrt(discount)*AB
+        return np.sqrt(discount) * AB
 
 
 def stack_IK(K):
@@ -122,7 +122,7 @@ def calc_vPK(K, A, B, Q, discount=None):
     AK = calc_AK(K, A, B, discount)
     QK = calc_QK(K, Q)
     vQK = vec(QK)
-    return la.solve(np.eye(n*n) - np.kron(AK.T, AK.T), vQK)
+    return la.solve(np.eye(n * n) - np.kron(AK.T, AK.T), vQK)
 
 
 def calc_PK(K, A, B, Q, discount=None):
@@ -145,9 +145,9 @@ def qfun(P, A, B, Q, discount=None):
 
 def deblock(H, n, m):
     Hxx = H[0:n, 0:n]
-    Hxu = H[0:n, n:n+m]
-    Hux = H[n:n+m, 0:n]
-    Huu = H[n:n+m, n:n+m]
+    Hxu = H[0:n, n : n + m]
+    Hux = H[n : n + m, 0:n]
+    Huu = H[n : n + m, n : n + m]
     return Hxx, Hxu, Hux, Huu
 
 
@@ -185,41 +185,48 @@ def check_are(K, A, B, Q, discount=None, verbose=True):
     PK = calc_PK(K, A, B, Q, discount)
     LHS = PK
     RHS = ricc(PK, A, B, Q, discount)
-    diff = la.norm(LHS-RHS)
+    diff = la.norm(LHS - RHS)
     if verbose:
-        print(' Left-hand side of the ARE: Positive definite = %s' % is_pos_def(LHS))
+        print(" Left-hand side of the ARE: Positive definite = %s" % is_pos_def(LHS))
         print(LHS)
-        print('')
-        print('Right-hand side of the ARE: Positive definite = %s' % is_pos_def(RHS))
+        print("")
+        print("Right-hand side of the ARE: Positive definite = %s" % is_pos_def(RHS))
         print(RHS)
-        print('')
-        print('Difference')
-        print(LHS-RHS)
-        print('\n')
+        print("")
+        print("Difference")
+        print(LHS - RHS)
+        print("\n")
     return diff
 
 
 # Compute LQR objective and/or its derivatives manually
-def calc_manual(K, A, B, Q, X0, E=None, discount=1.0, derivative='cost'):
+def calc_manual(K, A, B, Q, X0, E=None, discount=None, derivative="cost"):
     AK = calc_AK(K, A, B, discount)
     QK = calc_QK(K, Q)
     PK = dlyap(AK.T, QK)
 
-    if derivative == 'cost':
+    if derivative == "cost":
         CK = np.trace(np.dot(PK, X0))
         return CK
-    elif derivative in ['gradient', 'hessian']:
+    elif derivative in ["gradient", "hessian"]:
         Hxx, Hxu, Hux, Huu = qfun_comps(PK, A, B, Q, discount)
         XK = dlyap(AK, X0)
-        if derivative == 'gradient':
+        if derivative == "gradient":
             EK = np.dot(Huu, K) - Hux
-            G = -2*np.dot(EK, XK)
+            G = -2 * np.dot(EK, XK)
             return G
-        elif derivative == 'hessian':
+        elif derivative == "hessian":
             SK_E_half = np.dot(E.T, Hux + np.dot(Huu, K))
             SK_E = SK_E_half + SK_E_half.T
             PKdE = dlyap(AK.T, SK_E)
-            hess_EE = 2*np.trace(np.dot(np.dot(np.dot(Huu, E) + 2*(np.dot(np.sqrt(discount)*B.T, np.dot(PKdE, AK))), XK).T, E))
+            part1 = np.dot(Huu, E)
+            # Use simplified logic (skipping scalar-matrix multiply) if discount is None.
+            if discount is None:
+                part2 = 2 * (np.dot(B.T, np.dot(PKdE, AK)))
+            else:
+                part2 = 2 * (np.dot(np.sqrt(discount) * B.T, np.dot(PKdE, AK)))
+
+            hess_EE = 2 * np.trace(np.dot(np.dot(part1 + part2, XK).T, E))
             return hess_EE
     else:
         raise ValueError
@@ -227,12 +234,12 @@ def calc_manual(K, A, B, Q, X0, E=None, discount=1.0, derivative='cost'):
 
 # Convenience aliases
 def calc_cost_manual(K, A, B, Q, X0, discount=None):
-    return calc_manual(K, A, B, Q, X0, E=None, discount=discount, derivative='cost')
+    return calc_manual(K, A, B, Q, X0, E=None, discount=discount, derivative="cost")
 
 
 def calc_grad_manual(K, A, B, Q, X0, discount=None):
-    return calc_manual(K, A, B, Q, X0, E=None, discount=discount, derivative='gradient')
+    return calc_manual(K, A, B, Q, X0, E=None, discount=discount, derivative="gradient")
 
 
 def calc_hess_manual(K, E, A, B, Q, X0, discount=None):
-    return calc_manual(K, A, B, Q, X0, E=E, discount=discount, derivative='hessian')
+    return calc_manual(K, A, B, Q, X0, E=E, discount=discount, derivative="hessian")
