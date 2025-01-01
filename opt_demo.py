@@ -372,7 +372,6 @@ if __name__ == "__main__":
 
         categories_results_dict[category] = results_dict
 
-    plt.close('all')
     plot_folder = 'plots'
     for category, results_dict in categories_results_dict.items():
         # # Plot each method in a separate figure

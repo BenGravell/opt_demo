@@ -25,7 +25,6 @@ def lsim_cl(A, B, K, T, x0=None):
 # Reset global options
 np.set_printoptions(precision=3)
 seed = 1
-plt.close('all')
 
 # Make LQR problem data
 A, B, Q, X0 = gen_lqr_problem(n=3, m=2, rho=1.05, round_places=1, seed=seed)
@@ -47,5 +46,4 @@ for i, discount in enumerate(discounts):
     ax[1, i].plot(t_hist, x_hist)
     ax[1, i].grid('on')
 fig.tight_layout()
-
-
+plt.show()
